@@ -1,12 +1,13 @@
 services:
-  ros_humble: 
+  ros_humble:
     build: .
-    # stdin_open: true
+    image: pr_assessment:v0.0.1
+    stdin_open: true
     tty: true
-    network_mode: host  # Uses host network, often better for X11
+    network_mode: host
+    working_dir: /ros2_ws
     environment:
       - DISPLAY=${DISPLAY}
-    # X11-unix volume mount may not be needed with host network
-    # but including it for compatibility
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./ros2_ws/src:/ros2_ws/src:rw  # Mount existing ROS2 workspace
