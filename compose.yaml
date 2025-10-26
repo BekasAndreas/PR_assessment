@@ -1,0 +1,12 @@
+services:
+  ros_humble: 
+    build: .
+    # stdin_open: true
+    tty: true
+    network_mode: host  # Uses host network, often better for X11
+    environment:
+      - DISPLAY=${DISPLAY}
+    # X11-unix volume mount may not be needed with host network
+    # but including it for compatibility
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
