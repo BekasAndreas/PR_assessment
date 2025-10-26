@@ -1,0 +1,10 @@
+# Service for performing linear algebra transformations
+#
+# Request
+geometry_msgs/Point[] a                    # Each point represents a row in matrix A (Mx3) - input matrix
+float64[] d                                # Each value represents an element in vector d - input vector
+---
+# Response  
+geometry_msgs/Point x_transformed           # Rotated and displaced solution x' (1x3) - transformed point
+geometry_msgs/Point[3] rotation_matrix      # Rotational matrix (3x3) - random rotation matrix
+geometry_msgs/Vector3 d_prime               # Displacement vector d' (1x3) - random displacement vector

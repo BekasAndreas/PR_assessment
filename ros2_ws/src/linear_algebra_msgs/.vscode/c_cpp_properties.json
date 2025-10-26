@@ -1,0 +1,23 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/opt/ros/humble/include/**",
+        "/home/andreas/ProgRobots/ros2_ws/src/linear_algebra_msgs/include/**",
+        "/home/andreas/ProgRobots/ros2_ws/src/linear_algebra_nodes/include/**",
+        "/home/andreas/ProgRobots/ros2_ws/src/ur20_display/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
