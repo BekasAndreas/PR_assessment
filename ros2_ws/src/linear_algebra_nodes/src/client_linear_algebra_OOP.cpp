@@ -40,150 +40,247 @@ class ClientPublisherNode : public rclcpp::Node
         // Initialize member variables
         initialize_variables();
 
+        // Load data from YAML and create service request
+        if (!yaml2request()) {
+            RCLCPP_ERROR(this->get_logger(), "Failed to load YAML data. Shutting down.");
+            rclcpp::shutdown();
+            return;
+        }
         
-        yaml2request();
+        // Wait for service to be available
+        if (!wait_for_service(5s)) {
+            RCLCPP_ERROR(this->get_logger(), "Service not available. Shutting down.");
+            rclcpp::shutdown();
+            return;
+        }
 
-        while(!client_->wait_for_service(2s)){
-            if (!rclcpp::ok()) 
-            {
-                RCLCPP_ERROR(this->get_logger(), "Interrupted while waiting for the service. Exiting.");
-                return;
-            }
-            RCLCPP_INFO(this->get_logger(), "service not available, waiting again...");
-            }
-
-        auto response = client_->async_send_request(request, std::bind(&ClientPublisherNode::responseCallback, this, _1));    
-
-
+        // Send service request
+        send_service_request();
+        
+        // Start publishing timer
         timer_ = this->create_wall_timer(500ms, std::bind(&ClientPublisherNode::timerCallback, this));
 
-        RCLCPP_INFO(this->get_logger(), "Contruction of ClientPublisherNode : COMPLETED!");
-        rclcpp::sleep_for(2s);
+        RCLCPP_INFO(this->get_logger(), "ClientPublisherNode initialized successfully!");
 
     }
 
   private:
+    // ROS 2 interfaces
     rclcpp::Client<linear_algebra_msgs::srv::MagicInterface>::SharedPtr client_;
     rclcpp::Publisher<linear_algebra_msgs::msg::MagicVector>::SharedPtr publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
-    linear_algebra_msgs::srv::MagicInterface::Request::SharedPtr request;
-    linear_algebra_msgs::msg::MagicVector::SharedPtr message;
-    Eigen::Matrix3d Q;
-    Eigen::Vector3d d_prime;
-    Eigen::Vector3d x_transformed;
-    Eigen::Vector3d x_recovered;
+
+    // Data storage
+    linear_algebra_msgs::srv::MagicInterface::Request::SharedPtr request_;
+    linear_algebra_msgs::msg::MagicVector::SharedPtr message_;
+    
+    // Linear algebra matrices and vectors
+    Eigen::Matrix3d rotation_matrix_;
+    Eigen::Vector3d displacement_vector_;
+    Eigen::Vector3d transformed_vector_;
+    Eigen::Vector3d recovered_vector_;
 
 
-    bool response_received_{false};                    //LLM
+    bool response_received_{false};                
 
 
-
-    void initialize_variables(){
+    /**
+     * @brief Initialize member variables with default values
+     */
+    void initialize_variables()
+    {
         try
         {
             // Initialize member variables
-            message = std::make_shared<linear_algebra_msgs::msg::MagicVector>();
-            Q = Eigen::Matrix3d::Identity();
-            d_prime = Eigen::Vector3d::Zero();
-            x_transformed = Eigen::Vector3d::Zero();
-            x_recovered = Eigen::Vector3d::Zero();
-           RCLCPP_INFO(this->get_logger(), "The variables initialized successfully!");
-            rclcpp::sleep_for(1s);
+            message_ = std::make_shared<linear_algebra_msgs::msg::MagicVector>();
+            rotation_matrix_ = Eigen::Matrix3d::Identity();
+            displacement_vector_ = Eigen::Vector3d::Zero();
+            transformed_vector_ = Eigen::Vector3d::Zero();
+            recovered_vector_ = Eigen::Vector3d::Zero();
+            RCLCPP_INFO(this->get_logger(), "Member variables initialized successfully!");
         }
         catch (...)
         {
-            RCLCPP_ERROR(this->get_logger(), "The variables failed to initialize.");
-            rclcpp::sleep_for(1s);
+            RCLCPP_ERROR(this->get_logger(), "Member variables failed to initialize.");
         }
     }
 
+    /**
+     * @brief Wait for the service to become available
+     * @param timeout Maximum time to wait for service
+     * @return true if service is available, false otherwise
+     */
+    bool wait_for_service(std::chrono::seconds timeout)
+    {
+        const auto start_time = std::chrono::steady_clock::now();
+        
+        while (rclcpp::ok() && 
+               std::chrono::steady_clock::now() - start_time < timeout) {
+            
+            if (client_->wait_for_service(5s)) {
+                RCLCPP_INFO(this->get_logger(), "Service is available");
+                return true;
+            }
+            
+            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
+                "Waiting for service 'do_magic' to become available...");
+        }
+        
+        return false;
+    }    
 
+    /**
+     * @brief Send service request to compute linear transformation
+     */
+    void send_service_request()
+    {
+        RCLCPP_INFO(this->get_logger(), "Sending service request...");
+        
+        auto future = client_->async_send_request(request_,
+            std::bind(&ClientPublisherNode::response_callback, this, _1));
+            
+        RCLCPP_DEBUG(this->get_logger(), "Service request sent successfully");
+    }
+
+
+    /**
+     * @brief Timer callback for publishing recovered vector
+     */    
     void timerCallback(){
         if (!response_received_) {
-            RCLCPP_WARN(this->get_logger(), "Waiting for service response...");
+            RCLCPP_WARN(this->get_logger(), "Waiting for service response before publishing...");
             return;
         }
 
         try
         {
-            message->magic_vector.x = this->x_recovered(0);            
-            message->magic_vector.y = this->x_recovered(1);
-            message->magic_vector.z = this->x_recovered(2);
+            // Update message with recovered vector
+            message_->magic_vector.x = this->recovered_vector_(0);            
+            message_->magic_vector.y = this->recovered_vector_(1);
+            message_->magic_vector.z = this->recovered_vector_(2);
 
-            publisher_->publish(*message);
-            RCLCPP_INFO(this->get_logger(), "Send x to topic: [x = %f, y = %f, z = %f]", message->magic_vector.x, message->magic_vector.y, message->magic_vector.z);
-            rclcpp::sleep_for(1s);
+            // Publish message
+            publisher_->publish(*message_);
+
+            RCLCPP_INFO(this->get_logger(), "Published recovered vector: [x: %.3f, y: %.3f, z: %.3f]", message_->magic_vector.x, message_->magic_vector.y, message_->magic_vector.z);
         }
         catch (...)
         {
-            RCLCPP_ERROR(this->get_logger(), "Msg failed to reach the topic.");
-            rclcpp::sleep_for(1s);
+            RCLCPP_ERROR(this->get_logger(), "Error in timer callback.");
         }
     }
 
-    void yaml2request()
+    /**
+     * @brief Load data from YAML file and create service request
+     * @return true if successful, false otherwise
+     */    
+    bool yaml2request()
     {
         try
         {
-            // std::string yaml_path = "/home/andreas/ProgRobots/ros2_ws/src/linear_algebra_nodes/config/data.yaml";
+            // Get package-relative path to YAML file
             std::string yaml_path = ament_index_cpp::get_package_share_directory("linear_algebra_nodes") + "/config/data.yaml";
-            YAML::Node config = YAML::LoadFile(yaml_path);
+            RCLCPP_DEBUG(this->get_logger(), "Loading YAML file from: %s", yaml_path.c_str());
 
-            request = std::make_shared<linear_algebra_msgs::srv::MagicInterface::Request>();
-            // --- Load points (matrix A) ---
+            YAML::Node config = YAML::LoadFile(yaml_path);
+            request_ = std::make_shared<linear_algebra_msgs::srv::MagicInterface::Request>();
+
+            // Load matrix A (points)
+            if (!config["a"] || !config["a"].IsSequence()) {
+                RCLCPP_ERROR(this->get_logger(), "Invalid or missing 'a' section in YAML");
+                return false;
+            }
+
             for (const auto& point_node : config["a"])
             {
-                geometry_msgs::msg::Point p;
-                p.x = point_node["x"].as<double>();
-                p.y = point_node["y"].as<double>();
-                p.z = point_node["z"].as<double>();
-                request->a.push_back(p);
+                geometry_msgs::msg::Point point;
+                point.x = point_node["x"].as<double>();
+                point.y = point_node["y"].as<double>();
+                point.z = point_node["z"].as<double>();
+                request_->a.push_back(point);
             }
-                // --- Load vector d ---
+
+            // Load vector d
+            if (!config["d"] || !config["d"].IsSequence()) {
+                RCLCPP_ERROR(this->get_logger(), "Invalid or missing 'd' section in YAML");
+                return false;
+            }
+
             for (const auto& val_node : config["d"])
             {
-                request->d.push_back(val_node.as<double>());
+                request_->d.push_back(val_node.as<double>());
             }
-            RCLCPP_INFO(this->get_logger(), "YAML file loaded successfully!   The first element of A is: %f.  The first element of d is: %f", request->a[0].x, request->d[0]);
-            rclcpp::sleep_for(1s);
+
+            if (request_->a.size() != request_->d.size())
+            {
+                RCLCPP_ERROR(this->get_logger(), 
+                "Inconcistent matrices! Matrix A has %zu rows, Vector d has %zu elements",
+                request_->a.size(), request_->d.size());
+                throw;
+            }
+
+            RCLCPP_INFO(this->get_logger(), 
+                "YAML data loaded: Matrix A has %zu rows, Vector d has %zu elements",
+                request_->a.size(), request_->d.size());
+
+            RCLCPP_DEBUG(this->get_logger(), 
+                "First element of A: [%.3f, %.3f, %.3f], First element of d: %.3f",
+                request_->a[0].x, request_->a[0].y, request_->a[0].z, request_->d[0]);
+
+            return true;
         }
         catch (...)
         {
             RCLCPP_ERROR(this->get_logger(), "YAML file failed to load.");
-            rclcpp::sleep_for(1s);
+            return false;
         }
 
         
 
     }
 
-    void responseCallback(rclcpp::Client<linear_algebra_msgs::srv::MagicInterface>::SharedFuture future)
+
+    /**
+     * @brief Callback for service response
+     * @param future Future containing service response
+     */
+    void response_callback(rclcpp::Client<linear_algebra_msgs::srv::MagicInterface>::SharedFuture future)
     {
-        if (!future.valid())
+
+        try {
+            auto response = future.get();
+
+            RCLCPP_INFO(this->get_logger(), "Service response received successfully");
+
+            // Extract rotation matrix from response
+            for (int i {0} ; i<3 ; i++){
+            rotation_matrix_(i,0) = response->rotation_matrix[i].x;
+            rotation_matrix_(i,1) = response->rotation_matrix[i].y;
+            rotation_matrix_(i,2) = response->rotation_matrix[i].z;
+            }
+
+            // Extract displacement vector
+            displacement_vector_(0) = response->d_prime.x;
+            displacement_vector_(1) = response->d_prime.y;
+            displacement_vector_(2) = response->d_prime.z;
+
+            // Extract transformed vector
+            transformed_vector_(0) = response->x_transformed.x ;  
+            transformed_vector_(1) = response->x_transformed.y; 
+            transformed_vector_(2) = response->x_transformed.z;    
+
+            // Recover original vector: x = Q^T * (x' - d')
+            recovered_vector_ = rotation_matrix_.transpose() * (transformed_vector_ - displacement_vector_);
+
+            RCLCPP_INFO(this->get_logger(), 
+                "Vector recovered: [%.3f, %.3f, %.3f]", 
+                recovered_vector_.x(), recovered_vector_.y(), recovered_vector_.z());
+
+            response_received_ = true;             
+        }
+        catch(...)
         {
             RCLCPP_ERROR(this->get_logger(), "Service Failure");
-        }
-        else
-        {
-            RCLCPP_INFO(this->get_logger(), "THEY MADE IT! We just got the response....");
-
-            for (int i {0} ; i<3 ; i++){
-            Q(i,0) = future.get()->rotation_matrix[i].x;
-            Q(i,1) = future.get()->rotation_matrix[i].y;
-            Q(i,2) = future.get()->rotation_matrix[i].z;
-            }
-            d_prime(0) = future.get()->d_prime.x;
-            d_prime(1) = future.get()->d_prime.y;
-            d_prime(2) = future.get()->d_prime.z;
-
-            x_transformed(0) = future.get()->x_transformed.x ;  
-            x_transformed(1) = future.get()->x_transformed.y; 
-            x_transformed(2) = future.get()->x_transformed.z;    
-
-            x_recovered = Q.transpose() * (x_transformed - d_prime);
-
-
-            response_received_ = true;                    //LLM
         }
 
     }
