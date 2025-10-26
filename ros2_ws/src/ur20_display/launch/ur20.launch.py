@@ -9,28 +9,28 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
     declared_arguments = []
     # UR specific arguments
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "ur_type",
-            description="Type/series of used UR robot.",
-            choices=[
-                "ur3",
-                "ur5",
-                "ur10",
-                "ur3e",
-                "ur5e",
-                "ur7e",
-                "ur10e",
-                "ur12e",
-                "ur16e",
-                "ur8long",
-                "ur15",
-                "ur18",
-                "ur20",
-                "ur30",
-            ],
-        )
-    )
+    # declared_arguments.append(
+    #     DeclareLaunchArgument(
+    #         "ur_type",
+    #         description="Type/series of used UR robot.",
+    #         choices=[
+    #             "ur3",
+    #             "ur5",
+    #             "ur10",
+    #             "ur3e",
+    #             "ur5e",
+    #             "ur7e",
+    #             "ur10e",
+    #             "ur12e",
+    #             "ur16e",
+    #             "ur8long",
+    #             "ur15",
+    #             "ur18",
+    #             "ur20",
+    #             "ur30",
+    #         ],
+    #     )
+    # )
     declared_arguments.append(
         DeclareLaunchArgument(
             "safety_limits",
@@ -81,7 +81,7 @@ def generate_launch_description():
     )
 
     # Initialize Arguments
-    ur_type = LaunchConfiguration("ur_type")
+    ur_type = LaunchConfiguration("ur20")
     safety_limits = LaunchConfiguration("safety_limits")
     safety_pos_margin = LaunchConfiguration("safety_pos_margin")
     safety_k_position = LaunchConfiguration("safety_k_position")
@@ -108,7 +108,7 @@ def generate_launch_description():
             "ur",
             " ",
             "ur_type:=",
-            ur_type,
+            "ur20",
             " ",
             "tf_prefix:=",
             tf_prefix,

@@ -33,6 +33,19 @@ install(DIRECTORY
     DESTINATION share/${PROJECT_NAME}
     )
 
+# Export dependencies for other packages
+ament_export_dependencies(
+    rclcpp
+    sensor_msgs
+    tf2_msgs
+    tf2_ros
+    tf2
+    tf2_eigen
+    Eigen3
+    rviz_visual_tools
+    robot_state_publisher
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
