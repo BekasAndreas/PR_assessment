@@ -1,7 +1,7 @@
 # 🦾 Robotics Software Engineer Technical Assessment
 
-This guide explains how to build and run the **PR_assessment** Docker workspace for the technical tasks.
-
+This guide explains how to build and run the **PR_assessment** Docker workspace for the technical tasks, after you clone it in an empty folder.
+![Screenshot](./Screenshot.png)
 ---
 
 📁 1. Move to the Root Directory
